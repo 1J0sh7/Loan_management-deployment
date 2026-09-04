@@ -15,6 +15,10 @@ springdoc:
     enabled: true
     path: /swagger-ui.html
     operationsSorter: method
+    try-it-out-enabled: true
+    urls:
+      - url: https://loan-management.up.railway.app/v3/api-docs
+        name: Production Server
 
 spring:
   datasource:
