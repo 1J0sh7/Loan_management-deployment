@@ -1,6 +1,9 @@
 server:
   port: 8081
   shutdown: graceful
+  forward-headers-strategy: framework
+  tomcat:
+    redirect-context-root: true
 
 logging:
   level:
@@ -16,6 +19,7 @@ springdoc:
     path: /swagger-ui.html
     operationsSorter: method
     try-it-out-enabled: true
+    server-url: https://loan-management.up.railway.app
     urls:
       - url: https://loan-management.up.railway.app/v3/api-docs
         name: Production Server
