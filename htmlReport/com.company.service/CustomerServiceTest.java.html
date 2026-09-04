@@ -1,0 +1,491 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CustomerServiceTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">test.exec</a> &gt; <a href="index.source.html" class="el_package">com.company.service</a> &gt; <span class="el_source">CustomerServiceTest.java</span></div><h1>CustomerServiceTest.java</h1><pre class="source lang-java linenums">package com.company.service;
+
+import com.company.dto.CustomerRequest;
+import com.company.dto.CustomerResponse;
+import com.company.dto.PageResponse;
+import com.company.exception.DuplicateResourceException;
+import com.company.exception.NotFoundException;
+import com.company.exception.ValidationException;
+import com.company.model.Customer;
+import com.company.model.Role;
+import com.company.model.User;
+import com.company.repository.CustomerRepository;
+import com.company.repository.UserRepository;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+<span class="fc" id="L40">class CustomerServiceTest {</span>
+
+    @Mock
+    private CustomerRepository customerRepository;
+
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private EmailService emailService;
+
+    @InjectMocks
+    private CustomerService customerService;
+
+    private User testUser;
+    private User adminUser;
+    private Customer testCustomer;
+    private Customer orphanCustomer;
+    private CustomerRequest validRequest;
+
+    // This runs before each test to set up test data
+    @BeforeEach
+    void setUp() {
+        // Create a regular user
+<span class="fc" id="L64">        testUser = new User();</span>
+<span class="fc" id="L65">        testUser.setId(1L);</span>
+<span class="fc" id="L66">        testUser.setUsername(&quot;testuser&quot;);</span>
+<span class="fc" id="L67">        testUser.setRole(Role.USER);</span>
+
+        // Create an admin user
+<span class="fc" id="L70">        adminUser = new User();</span>
+<span class="fc" id="L71">        adminUser.setId(2L);</span>
+<span class="fc" id="L72">        adminUser.setUsername(&quot;admin&quot;);</span>
+<span class="fc" id="L73">        adminUser.setRole(Role.ADMIN);</span>
+
+        // Create a customer linked to testUser
+<span class="fc" id="L76">        testCustomer = new Customer();</span>
+<span class="fc" id="L77">        testCustomer.setId(1L);</span>
+<span class="fc" id="L78">        testCustomer.setName(&quot;John Doe&quot;);</span>
+<span class="fc" id="L79">        testCustomer.setEmail(&quot;john@test.com&quot;);</span>
+<span class="fc" id="L80">        testCustomer.setPhone(&quot;1234567890&quot;);</span>
+<span class="fc" id="L81">        testCustomer.setUser(testUser);</span>
+
+        // Create an orphan customer (no user linked)
+<span class="fc" id="L84">        orphanCustomer = new Customer();</span>
+<span class="fc" id="L85">        orphanCustomer.setId(2L);</span>
+<span class="fc" id="L86">        orphanCustomer.setName(&quot;Orphan Corp&quot;);</span>
+<span class="fc" id="L87">        orphanCustomer.setEmail(&quot;orphan@test.com&quot;);</span>
+<span class="fc" id="L88">        orphanCustomer.setPhone(&quot;5555555555&quot;);</span>
+<span class="fc" id="L89">        orphanCustomer.setUser(null);</span>
+
+        // A valid customer request
+<span class="fc" id="L92">        validRequest = new CustomerRequest();</span>
+<span class="fc" id="L93">        validRequest.setName(&quot;John Doe&quot;);</span>
+<span class="fc" id="L94">        validRequest.setEmail(&quot;john@test.com&quot;);</span>
+<span class="fc" id="L95">        validRequest.setPhone(&quot;1234567890&quot;);</span>
+
+        // Set default authentication as testUser
+<span class="fc" id="L98">        authenticateAs(testUser);</span>
+<span class="fc" id="L99">    }</span>
+
+    // Clean up after each test
+    @AfterEach
+    void tearDown() {
+<span class="fc" id="L104">        SecurityContextHolder.clearContext();</span>
+<span class="fc" id="L105">    }</span>
+
+    // Helper method to authenticate as a specific user
+    private void authenticateAs(User user) {
+<span class="fc" id="L109">        Authentication authentication = mock(Authentication.class);</span>
+<span class="fc" id="L110">        lenient().when(authentication.getName()).thenReturn(user.getUsername());</span>
+
+<span class="fc bfc" id="L112" title="All 2 branches covered.">        String role = user.getRole() == Role.ADMIN ? &quot;ROLE_ADMIN&quot; : &quot;ROLE_USER&quot;;</span>
+<span class="fc" id="L113">        lenient().doReturn(AuthorityUtils.createAuthorityList(role))</span>
+<span class="fc" id="L114">                .when(authentication).getAuthorities();</span>
+
+<span class="fc" id="L116">        SecurityContextHolder.getContext().setAuthentication(authentication);</span>
+<span class="fc" id="L117">        lenient().when(userRepository.findByUsername(user.getUsername())).thenReturn(Optional.of(user));</span>
+<span class="fc" id="L118">    }</span>
+
+    // Tests for createCustomer()
+
+    @Test
+    void createCustomer_Success() {
+<span class="fc" id="L124">        when(customerRepository.existsByEmail(anyString())).thenReturn(false);</span>
+<span class="fc" id="L125">        when(customerRepository.existsByPhone(anyString())).thenReturn(false);</span>
+<span class="fc" id="L126">        when(customerRepository.existsByUserId(anyLong())).thenReturn(false);</span>
+<span class="fc" id="L127">        when(customerRepository.save(any(Customer.class))).thenReturn(testCustomer);</span>
+
+<span class="fc" id="L129">        CustomerResponse response = customerService.createCustomer(validRequest);</span>
+
+<span class="fc" id="L131">        assertThat(response).isNotNull();</span>
+<span class="fc" id="L132">        assertThat(response.getName()).isEqualTo(&quot;John Doe&quot;);</span>
+<span class="fc" id="L133">        assertThat(response.getEmail()).isEqualTo(&quot;john@test.com&quot;);</span>
+<span class="fc" id="L134">        verify(customerRepository).save(any(Customer.class));</span>
+<span class="fc" id="L135">        verify(emailService).sendWelcomeEmail(anyString(), anyString());</span>
+<span class="fc" id="L136">    }</span>
+
+    @Test
+    void createCustomer_DuplicateEmail_ThrowsException() {
+<span class="fc" id="L140">        when(customerRepository.existsByUserId(anyLong())).thenReturn(false);</span>
+<span class="fc" id="L141">        when(customerRepository.existsByEmail(anyString())).thenReturn(true);</span>
+
+<span class="pc" id="L143">        assertThatThrownBy(() -&gt; customerService.createCustomer(validRequest))</span>
+<span class="fc" id="L144">                .isInstanceOf(DuplicateResourceException.class)</span>
+<span class="fc" id="L145">                .hasMessageContaining(&quot;email already exists&quot;);</span>
+<span class="fc" id="L146">    }</span>
+
+    @Test
+    void createCustomer_DuplicatePhone_ThrowsException() {
+<span class="fc" id="L150">        when(customerRepository.existsByUserId(anyLong())).thenReturn(false);</span>
+<span class="fc" id="L151">        when(customerRepository.existsByEmail(anyString())).thenReturn(false);</span>
+<span class="fc" id="L152">        when(customerRepository.existsByPhone(anyString())).thenReturn(true);</span>
+
+<span class="pc" id="L154">        assertThatThrownBy(() -&gt; customerService.createCustomer(validRequest))</span>
+<span class="fc" id="L155">                .isInstanceOf(DuplicateResourceException.class)</span>
+<span class="fc" id="L156">                .hasMessageContaining(&quot;phone already exists&quot;);</span>
+<span class="fc" id="L157">    }</span>
+
+    @Test
+    void createCustomer_UserAlreadyHasProfile_ThrowsException() {
+<span class="fc" id="L161">        when(customerRepository.existsByUserId(anyLong())).thenReturn(true);</span>
+
+<span class="pc" id="L163">        assertThatThrownBy(() -&gt; customerService.createCustomer(validRequest))</span>
+<span class="fc" id="L164">                .isInstanceOf(ValidationException.class)</span>
+<span class="fc" id="L165">                .hasMessageContaining(&quot;already have a customer profile&quot;);</span>
+<span class="fc" id="L166">    }</span>
+
+    @Test
+    void createCustomer_AdminBlocked_ThrowsException() {
+<span class="fc" id="L170">        authenticateAs(adminUser);</span>
+
+<span class="pc" id="L172">        assertThatThrownBy(() -&gt; customerService.createCustomer(validRequest))</span>
+<span class="fc" id="L173">                .isInstanceOf(AccessDeniedException.class)</span>
+<span class="fc" id="L174">                .hasMessageContaining(&quot;ADMIN cannot create customer profiles&quot;);</span>
+
+<span class="fc" id="L176">        verifyNoInteractions(customerRepository);</span>
+<span class="fc" id="L177">    }</span>
+
+    // Tests for getCustomerById()
+
+    @Test
+    void getCustomerById_Success_Owner() {
+<span class="fc" id="L183">        when(customerRepository.findById(1L)).thenReturn(Optional.of(testCustomer));</span>
+
+<span class="fc" id="L185">        CustomerResponse response = customerService.getCustomerById(1L);</span>
+
+<span class="fc" id="L187">        assertThat(response.getName()).isEqualTo(&quot;John Doe&quot;);</span>
+<span class="fc" id="L188">    }</span>
+
+    @Test
+    void getCustomerById_NotFound_ThrowsException() {
+<span class="fc" id="L192">        when(customerRepository.findById(999L)).thenReturn(Optional.empty());</span>
+
+<span class="pc" id="L194">        assertThatThrownBy(() -&gt; customerService.getCustomerById(999L))</span>
+<span class="fc" id="L195">                .isInstanceOf(NotFoundException.class)</span>
+<span class="fc" id="L196">                .hasMessageContaining(&quot;not found&quot;);</span>
+<span class="fc" id="L197">    }</span>
+
+    @Test
+    void getCustomerById_NotOwner_ThrowsAccessDenied() {
+<span class="fc" id="L201">        User otherUser = new User();</span>
+<span class="fc" id="L202">        otherUser.setId(99L);</span>
+<span class="fc" id="L203">        otherUser.setUsername(&quot;other&quot;);</span>
+<span class="fc" id="L204">        otherUser.setRole(Role.USER);</span>
+<span class="fc" id="L205">        authenticateAs(otherUser);</span>
+
+<span class="fc" id="L207">        when(customerRepository.findById(1L)).thenReturn(Optional.of(testCustomer));</span>
+
+<span class="pc" id="L209">        assertThatThrownBy(() -&gt; customerService.getCustomerById(1L))</span>
+<span class="fc" id="L210">                .isInstanceOf(AccessDeniedException.class)</span>
+<span class="fc" id="L211">                .hasMessageContaining(&quot;your own profile&quot;);</span>
+<span class="fc" id="L212">    }</span>
+
+    @Test
+    void getCustomerById_Orphan_AdminCanView() {
+<span class="fc" id="L216">        authenticateAs(adminUser);</span>
+<span class="fc" id="L217">        when(customerRepository.findById(2L)).thenReturn(Optional.of(orphanCustomer));</span>
+
+<span class="fc" id="L219">        CustomerResponse response = customerService.getCustomerById(2L);</span>
+
+<span class="fc" id="L221">        assertThat(response.getName()).isEqualTo(&quot;Orphan Corp&quot;);</span>
+<span class="fc" id="L222">    }</span>
+
+    @Test
+    void getCustomerById_Orphan_NonAdminForbidden() {
+<span class="fc" id="L226">        when(customerRepository.findById(2L)).thenReturn(Optional.of(orphanCustomer));</span>
+
+<span class="pc" id="L228">        assertThatThrownBy(() -&gt; customerService.getCustomerById(2L))</span>
+<span class="fc" id="L229">                .isInstanceOf(AccessDeniedException.class)</span>
+<span class="fc" id="L230">                .hasMessageContaining(&quot;Only ADMIN can view it&quot;);</span>
+<span class="fc" id="L231">    }</span>
+
+    // Tests for getAllCustomers()
+
+    @Test
+    void getAllCustomers_NoFilters_ReturnsAll() {
+<span class="fc" id="L237">        Page&lt;Customer&gt; page = new PageImpl&lt;&gt;(List.of(testCustomer));</span>
+<span class="fc" id="L238">        when(customerRepository.findAll(any(Pageable.class))).thenReturn(page);</span>
+
+<span class="fc" id="L240">        PageResponse&lt;CustomerResponse&gt; result =</span>
+<span class="fc" id="L241">                customerService.getAllCustomers(0, 10, null, null, null);</span>
+
+<span class="fc" id="L243">        assertThat(result.getContent()).hasSize(1);</span>
+<span class="fc" id="L244">        verify(customerRepository).findAll(any(Pageable.class));</span>
+<span class="fc" id="L245">        verify(customerRepository, never())</span>
+<span class="fc" id="L246">                .findByNameContainingIgnoreCase(anyString(), any());</span>
+<span class="fc" id="L247">    }</span>
+
+    @Test
+    void getAllCustomers_NameFilter_UsesNameQuery() {
+<span class="fc" id="L251">        Page&lt;Customer&gt; page = new PageImpl&lt;&gt;(List.of(testCustomer));</span>
+<span class="fc" id="L252">        when(customerRepository.findByNameContainingIgnoreCase(eq(&quot;John&quot;), any(Pageable.class)))</span>
+<span class="fc" id="L253">                .thenReturn(page);</span>
+
+<span class="fc" id="L255">        PageResponse&lt;CustomerResponse&gt; result =</span>
+<span class="fc" id="L256">                customerService.getAllCustomers(0, 10, &quot;John&quot;, null, null);</span>
+
+<span class="fc" id="L258">        assertThat(result.getContent()).hasSize(1);</span>
+<span class="fc" id="L259">        verify(customerRepository).findByNameContainingIgnoreCase(eq(&quot;John&quot;), any(Pageable.class));</span>
+<span class="fc" id="L260">    }</span>
+
+    @Test
+    void getAllCustomers_NameAndEmailFilter_UsesCombinedQuery() {
+<span class="fc" id="L264">        Page&lt;Customer&gt; page = new PageImpl&lt;&gt;(List.of(testCustomer));</span>
+<span class="fc" id="L265">        when(customerRepository.findByNameContainingIgnoreCaseAndEmailContainingIgnoreCase(</span>
+<span class="fc" id="L266">                eq(&quot;John&quot;), eq(&quot;john@test.com&quot;), any(Pageable.class))).thenReturn(page);</span>
+
+<span class="fc" id="L268">        PageResponse&lt;CustomerResponse&gt; result =</span>
+<span class="fc" id="L269">                customerService.getAllCustomers(0, 10, &quot;John&quot;, &quot;john@test.com&quot;, null);</span>
+
+<span class="fc" id="L271">        assertThat(result.getContent()).hasSize(1);</span>
+<span class="fc" id="L272">    }</span>
+
+    @Test
+    void getAllCustomers_SortDescending_ParsesDirection() {
+<span class="fc" id="L276">        Page&lt;Customer&gt; page = new PageImpl&lt;&gt;(List.of(testCustomer));</span>
+<span class="fc" id="L277">        when(customerRepository.findAll(any(Pageable.class))).thenReturn(page);</span>
+
+<span class="fc" id="L279">        customerService.getAllCustomers(0, 10, null, null, &quot;name,desc&quot;);</span>
+
+<span class="fc" id="L281">        verify(customerRepository).findAll(argThat((Pageable p) -&gt;</span>
+<span class="pc bpc" id="L282" title="1 of 2 branches missed.">                p.getSort().getOrderFor(&quot;name&quot;) != null</span>
+<span class="pc bpc" id="L283" title="1 of 2 branches missed.">                        &amp;&amp; p.getSort().getOrderFor(&quot;name&quot;).isDescending()));</span>
+<span class="fc" id="L284">    }</span>
+
+    // Tests for updateCustomer()
+
+    @Test
+    void updateCustomer_Success() {
+<span class="fc" id="L290">        when(customerRepository.findById(1L)).thenReturn(Optional.of(testCustomer));</span>
+<span class="fc" id="L291">        when(customerRepository.existsByEmail(anyString())).thenReturn(false);</span>
+<span class="fc" id="L292">        when(customerRepository.existsByPhone(anyString())).thenReturn(false);</span>
+<span class="fc" id="L293">        when(customerRepository.save(any(Customer.class))).thenReturn(testCustomer);</span>
+
+<span class="fc" id="L295">        CustomerRequest updateRequest = new CustomerRequest();</span>
+<span class="fc" id="L296">        updateRequest.setName(&quot;John Updated&quot;);</span>
+<span class="fc" id="L297">        updateRequest.setEmail(&quot;john.updated@test.com&quot;);</span>
+<span class="fc" id="L298">        updateRequest.setPhone(&quot;0987654321&quot;);</span>
+
+<span class="fc" id="L300">        CustomerResponse response = customerService.updateCustomer(1L, updateRequest);</span>
+
+<span class="fc" id="L302">        assertThat(response.getName()).isEqualTo(&quot;John Updated&quot;);</span>
+<span class="fc" id="L303">    }</span>
+
+    @Test
+    void updateCustomer_NotFound_ThrowsException() {
+<span class="fc" id="L307">        when(customerRepository.findById(999L)).thenReturn(Optional.empty());</span>
+
+<span class="pc" id="L309">        assertThatThrownBy(() -&gt; customerService.updateCustomer(999L, validRequest))</span>
+<span class="fc" id="L310">                .isInstanceOf(NotFoundException.class);</span>
+<span class="fc" id="L311">    }</span>
+
+    @Test
+    void updateCustomer_NotOwner_ThrowsAccessDenied() {
+<span class="fc" id="L315">        User otherUser = new User();</span>
+<span class="fc" id="L316">        otherUser.setId(99L);</span>
+<span class="fc" id="L317">        otherUser.setUsername(&quot;other&quot;);</span>
+<span class="fc" id="L318">        otherUser.setRole(Role.USER);</span>
+<span class="fc" id="L319">        authenticateAs(otherUser);</span>
+
+<span class="fc" id="L321">        when(customerRepository.findById(1L)).thenReturn(Optional.of(testCustomer));</span>
+
+<span class="pc" id="L323">        assertThatThrownBy(() -&gt; customerService.updateCustomer(1L, validRequest))</span>
+<span class="fc" id="L324">                .isInstanceOf(AccessDeniedException.class)</span>
+<span class="fc" id="L325">                .hasMessageContaining(&quot;your own profile&quot;);</span>
+<span class="fc" id="L326">    }</span>
+
+    @Test
+    void updateCustomer_Orphan_AdminCanUpdate() {
+<span class="fc" id="L330">        authenticateAs(adminUser);</span>
+<span class="fc" id="L331">        when(customerRepository.findById(2L)).thenReturn(Optional.of(orphanCustomer));</span>
+<span class="fc" id="L332">        when(customerRepository.existsByEmail(anyString())).thenReturn(false);</span>
+<span class="fc" id="L333">        when(customerRepository.existsByPhone(anyString())).thenReturn(false);</span>
+<span class="fc" id="L334">        when(customerRepository.save(any(Customer.class))).thenReturn(orphanCustomer);</span>
+
+<span class="fc" id="L336">        CustomerRequest updateRequest = new CustomerRequest();</span>
+<span class="fc" id="L337">        updateRequest.setName(&quot;Updated Orphan&quot;);</span>
+<span class="fc" id="L338">        updateRequest.setEmail(&quot;orphan-updated@test.com&quot;);</span>
+<span class="fc" id="L339">        updateRequest.setPhone(&quot;5551234567&quot;);</span>
+
+<span class="fc" id="L341">        CustomerResponse response = customerService.updateCustomer(2L, updateRequest);</span>
+
+<span class="fc" id="L343">        assertThat(response).isNotNull();</span>
+<span class="fc" id="L344">    }</span>
+
+    @Test
+    void updateCustomer_DuplicateEmail_ThrowsException() {
+<span class="fc" id="L348">        when(customerRepository.findById(1L)).thenReturn(Optional.of(testCustomer));</span>
+<span class="fc" id="L349">        when(customerRepository.existsByEmail(anyString())).thenReturn(true);</span>
+
+<span class="fc" id="L351">        CustomerRequest updateRequest = new CustomerRequest();</span>
+<span class="fc" id="L352">        updateRequest.setName(&quot;John Doe&quot;);</span>
+<span class="fc" id="L353">        updateRequest.setEmail(&quot;taken@test.com&quot;);</span>
+<span class="fc" id="L354">        updateRequest.setPhone(&quot;1234567890&quot;);</span>
+
+<span class="pc" id="L356">        assertThatThrownBy(() -&gt; customerService.updateCustomer(1L, updateRequest))</span>
+<span class="fc" id="L357">                .isInstanceOf(DuplicateResourceException.class);</span>
+<span class="fc" id="L358">    }</span>
+
+    // Tests for patchCustomer()
+
+    @Test
+    void patchCustomer_UpdatesOnlyProvidedFields() {
+<span class="fc" id="L364">        when(customerRepository.findById(1L)).thenReturn(Optional.of(testCustomer));</span>
+<span class="fc" id="L365">        when(customerRepository.existsByPhone(anyString())).thenReturn(false);</span>
+<span class="fc" id="L366">        when(customerRepository.save(any(Customer.class))).thenReturn(testCustomer);</span>
+
+<span class="fc" id="L368">        Map&lt;String, Object&gt; updates = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L369">        updates.put(&quot;phone&quot;, &quot;9998887777&quot;);</span>
+
+<span class="fc" id="L371">        CustomerResponse response = customerService.patchCustomer(1L, updates);</span>
+
+<span class="fc" id="L373">        assertThat(response).isNotNull();</span>
+<span class="fc" id="L374">        verify(customerRepository).save(any(Customer.class));</span>
+<span class="fc" id="L375">    }</span>
+
+
+
+
+    @Test
+    void patchCustomer_InvalidEmail_ThrowsException() {
+<span class="fc" id="L382">        when(customerRepository.findById(1L)).thenReturn(Optional.of(testCustomer));</span>
+
+<span class="fc" id="L384">        Map&lt;String, Object&gt; updates = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L385">        updates.put(&quot;email&quot;, &quot;not-an-email&quot;);</span>
+
+<span class="pc" id="L387">        assertThatThrownBy(() -&gt; customerService.patchCustomer(1L, updates))</span>
+<span class="fc" id="L388">                .isInstanceOf(ValidationException.class)</span>
+<span class="fc" id="L389">                .hasMessageContaining(&quot;Email must be valid&quot;);</span>
+<span class="fc" id="L390">    }</span>
+
+
+
+
+
+    @Test
+    void patchCustomer_EmptyName_ThrowsException() {
+<span class="fc" id="L398">        when(customerRepository.findById(1L)).thenReturn(Optional.of(testCustomer));</span>
+
+<span class="fc" id="L400">        Map&lt;String, Object&gt; updates = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L401">        updates.put(&quot;name&quot;, &quot;&quot;);</span>
+
+<span class="pc" id="L403">        assertThatThrownBy(() -&gt; customerService.patchCustomer(1L, updates))</span>
+<span class="fc" id="L404">                .isInstanceOf(ValidationException.class)</span>
+<span class="fc" id="L405">                .hasMessageContaining(&quot;Name cannot be null or empty&quot;);</span>
+<span class="fc" id="L406">    }</span>
+
+
+
+
+
+
+    @Test
+    void patchCustomer_NotOwner_ThrowsAccessDenied() {
+<span class="fc" id="L415">        User otherUser = new User();</span>
+<span class="fc" id="L416">        otherUser.setId(99L);</span>
+<span class="fc" id="L417">        otherUser.setUsername(&quot;other&quot;);</span>
+<span class="fc" id="L418">        otherUser.setRole(Role.USER);</span>
+<span class="fc" id="L419">        authenticateAs(otherUser);</span>
+
+<span class="fc" id="L421">        when(customerRepository.findById(1L)).thenReturn(Optional.of(testCustomer));</span>
+
+<span class="fc" id="L423">        Map&lt;String, Object&gt; updates = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L424">        updates.put(&quot;name&quot;, &quot;Hacked Name&quot;);</span>
+
+<span class="pc" id="L426">        assertThatThrownBy(() -&gt; customerService.patchCustomer(1L, updates))</span>
+<span class="fc" id="L427">                .isInstanceOf(AccessDeniedException.class);</span>
+<span class="fc" id="L428">    }</span>
+
+
+
+
+
+
+    // Tests for deleteCustomer()
+
+    @Test
+    void deleteCustomer_AdminSuccess() {
+<span class="fc" id="L439">        authenticateAs(adminUser);</span>
+<span class="fc" id="L440">        when(customerRepository.findById(1L)).thenReturn(Optional.of(testCustomer));</span>
+
+<span class="fc" id="L442">        boolean result = customerService.deleteCustomer(1L);</span>
+
+<span class="fc" id="L444">        assertThat(result).isTrue();</span>
+<span class="fc" id="L445">        verify(customerRepository).deleteById(1L);</span>
+<span class="fc" id="L446">    }</span>
+
+
+
+
+
+    @Test
+    void deleteCustomer_UserForbidden_ThrowsException() {
+<span class="fc" id="L454">        when(customerRepository.findById(1L)).thenReturn(Optional.of(testCustomer));</span>
+
+<span class="pc" id="L456">        assertThatThrownBy(() -&gt; customerService.deleteCustomer(1L))</span>
+<span class="fc" id="L457">                .isInstanceOf(AccessDeniedException.class)</span>
+<span class="fc" id="L458">                .hasMessageContaining(&quot;Only ADMIN can delete customers&quot;);</span>
+
+<span class="fc" id="L460">        verify(customerRepository, never()).deleteById(anyLong());</span>
+<span class="fc" id="L461">    }</span>
+
+
+
+
+    @Test
+    void deleteCustomer_NotFound_ThrowsException() {
+<span class="fc" id="L468">        authenticateAs(adminUser);</span>
+<span class="fc" id="L469">        when(customerRepository.findById(999L)).thenReturn(Optional.empty());</span>
+
+<span class="pc" id="L471">        assertThatThrownBy(() -&gt; customerService.deleteCustomer(999L))</span>
+<span class="fc" id="L472">                .isInstanceOf(NotFoundException.class);</span>
+<span class="fc" id="L473">    }</span>
+
+
+
+
+
+    // Test for getAllCustomersWithAddresses()
+
+    @Test
+    void getAllCustomersWithAddresses_ReturnsMappedList() {
+<span class="fc" id="L483">        when(customerRepository.findAllWithAddress()).thenReturn(List.of(testCustomer));</span>
+
+<span class="fc" id="L485">        List&lt;CustomerResponse&gt; result = customerService.getAllCustomersWithAddresses();</span>
+
+<span class="fc" id="L487">        assertThat(result).hasSize(1);</span>
+<span class="fc" id="L488">        assertThat(result.get(0).getEmail()).isEqualTo(&quot;john@test.com&quot;);</span>
+<span class="fc" id="L489">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

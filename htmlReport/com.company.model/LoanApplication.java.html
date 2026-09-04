@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LoanApplication.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">test.exec</a> &gt; <a href="index.source.html" class="el_package">com.company.model</a> &gt; <span class="el_source">LoanApplication.java</span></div><h1>LoanApplication.java</h1><pre class="source lang-java linenums">package com.company.model;
+
+import jakarta.persistence.*;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Table(name = &quot;loan_applications&quot;)
+public class LoanApplication {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = &quot;customer_id&quot;, nullable = false)
+    private Customer customer;
+
+    @ManyToOne
+    @JoinColumn(name = &quot;product_id&quot;, nullable = false)
+    private LoanProduct product;
+
+    @Column(nullable = false)
+    private Double amount;
+
+    @Column(nullable = false)
+    private String status; // PENDING, APPROVED, REJECTED, ACTIVE, COMPLETED
+
+    @Column(name = &quot;created_at&quot;)
+    private LocalDateTime createdAt;
+
+<span class="pc" id="L34">    @OneToMany(mappedBy = &quot;loanApplication&quot;, cascade = CascadeType.ALL)</span>
+    private List&lt;Repayment&gt; repayments = new ArrayList&lt;&gt;();
+
+    // Constructors
+<span class="fc" id="L38">    public LoanApplication() {}</span>
+
+<span class="nc" id="L40">    public LoanApplication(Customer customer, LoanProduct product, Double amount, String status) {</span>
+<span class="nc" id="L41">        this.customer = customer;</span>
+<span class="nc" id="L42">        this.product = product;</span>
+<span class="nc" id="L43">        this.amount = amount;</span>
+<span class="nc" id="L44">        this.status = status;</span>
+<span class="nc" id="L45">        this.createdAt = LocalDateTime.now();</span>
+<span class="nc" id="L46">    }</span>
+
+    // Getters and Setters
+<span class="nc" id="L49">    public Long getId() { return id; }</span>
+<span class="nc" id="L50">    public void setId(Long id) { this.id = id; }</span>
+
+<span class="nc" id="L52">    public Customer getCustomer() { return customer; }</span>
+<span class="nc" id="L53">    public void setCustomer(Customer customer) { this.customer = customer; }</span>
+
+<span class="nc" id="L55">    public LoanProduct getProduct() { return product; }</span>
+<span class="nc" id="L56">    public void setProduct(LoanProduct product) { this.product = product; }</span>
+
+<span class="nc" id="L58">    public Double getAmount() { return amount; }</span>
+<span class="nc" id="L59">    public void setAmount(Double amount) { this.amount = amount; }</span>
+
+<span class="nc" id="L61">    public String getStatus() { return status; }</span>
+<span class="nc" id="L62">    public void setStatus(String status) { this.status = status; }</span>
+
+<span class="nc" id="L64">    public LocalDateTime getCreatedAt() { return createdAt; }</span>
+<span class="nc" id="L65">    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }</span>
+
+<span class="nc" id="L67">    public List&lt;Repayment&gt; getRepayments() { return repayments; }</span>
+<span class="nc" id="L68">    public void setRepayments(List&lt;Repayment&gt; repayments) { this.repayments = repayments; }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

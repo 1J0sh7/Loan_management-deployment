@@ -1,0 +1,454 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CustomerControllerTest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">test.exec</a> &gt; <a href="index.source.html" class="el_package">com.company.controller</a> &gt; <span class="el_source">CustomerControllerTest.java</span></div><h1>CustomerControllerTest.java</h1><pre class="source lang-java linenums">package com.company.controller;
+
+import com.company.dto.LoginRequest;
+import com.company.dto.RegisterRequest;
+import com.company.dto.CustomerRequest;
+import com.company.dto.CustomerResponse;
+import com.company.dto.PageResponse;
+import com.company.exception.DuplicateResourceException;
+import com.company.exception.NotFoundException;
+import com.company.exception.ValidationException;
+import com.company.service.CustomerService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@Transactional
+@TestPropertySource(properties = {
+        &quot;spring.datasource.url=jdbc:h2:mem:testdb&quot;,
+        &quot;spring.datasource.driver-class-name=org.h2.Driver&quot;,
+        &quot;spring.jpa.database-platform=org.hibernate.dialect.H2Dialect&quot;,
+        &quot;spring.jpa.hibernate.ddl-auto=create-drop&quot;
+})
+<span class="fc" id="L42">class CustomerControllerTest {</span>
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @MockitoBean
+    private CustomerService customerService;
+
+    private String userToken;
+    private String adminToken;
+    private String otherUserToken;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        // Step 1: Register a regular user
+<span class="fc" id="L60">        RegisterRequest registerRequest = new RegisterRequest();</span>
+<span class="fc" id="L61">        registerRequest.setUsername(&quot;testuser&quot;);</span>
+<span class="fc" id="L62">        registerRequest.setPassword(&quot;password&quot;);</span>
+<span class="fc" id="L63">        registerRequest.setConfirmPassword(&quot;password&quot;);</span>
+
+<span class="fc" id="L65">        mockMvc.perform(post(&quot;/api/auth/register&quot;)</span>
+<span class="fc" id="L66">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L67">                        .content(objectMapper.writeValueAsString(registerRequest)))</span>
+<span class="fc" id="L68">                .andExpect(status().isCreated());</span>
+
+        // Step 2: Register an ADMIN user
+<span class="fc" id="L71">        RegisterRequest adminRequest = new RegisterRequest();</span>
+<span class="fc" id="L72">        adminRequest.setUsername(&quot;admin&quot;);</span>
+<span class="fc" id="L73">        adminRequest.setPassword(&quot;password&quot;);</span>
+<span class="fc" id="L74">        adminRequest.setConfirmPassword(&quot;password&quot;);</span>
+<span class="fc" id="L75">        adminRequest.setRole(&quot;ADMIN&quot;);</span>
+
+<span class="fc" id="L77">        mockMvc.perform(post(&quot;/api/auth/register&quot;)</span>
+<span class="fc" id="L78">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L79">                        .content(objectMapper.writeValueAsString(adminRequest)))</span>
+<span class="fc" id="L80">                .andExpect(status().isCreated());</span>
+
+        // Step 3: Register another regular user (for ownership tests)
+<span class="fc" id="L83">        RegisterRequest otherRequest = new RegisterRequest();</span>
+<span class="fc" id="L84">        otherRequest.setUsername(&quot;otheruser&quot;);</span>
+<span class="fc" id="L85">        otherRequest.setPassword(&quot;password&quot;);</span>
+<span class="fc" id="L86">        otherRequest.setConfirmPassword(&quot;password&quot;);</span>
+
+<span class="fc" id="L88">        mockMvc.perform(post(&quot;/api/auth/register&quot;)</span>
+<span class="fc" id="L89">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L90">                        .content(objectMapper.writeValueAsString(otherRequest)))</span>
+<span class="fc" id="L91">                .andExpect(status().isCreated());</span>
+
+        // Step 4: Login each user to get their token
+<span class="fc" id="L94">        userToken = getToken(&quot;testuser&quot;, &quot;password&quot;);</span>
+<span class="fc" id="L95">        adminToken = getToken(&quot;admin&quot;, &quot;password&quot;);</span>
+<span class="fc" id="L96">        otherUserToken = getToken(&quot;otheruser&quot;, &quot;password&quot;);</span>
+<span class="fc" id="L97">    }</span>
+
+    private String getToken(String username, String password) throws Exception {
+<span class="fc" id="L100">        LoginRequest loginRequest = new LoginRequest();</span>
+<span class="fc" id="L101">        loginRequest.setUsername(username);</span>
+<span class="fc" id="L102">        loginRequest.setPassword(password);</span>
+
+<span class="fc" id="L104">        String response = mockMvc.perform(post(&quot;/api/auth/login&quot;)</span>
+<span class="fc" id="L105">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L106">                        .content(objectMapper.writeValueAsString(loginRequest)))</span>
+<span class="fc" id="L107">                .andExpect(status().isOk())</span>
+<span class="fc" id="L108">                .andReturn()</span>
+<span class="fc" id="L109">                .getResponse()</span>
+<span class="fc" id="L110">                .getContentAsString();</span>
+
+<span class="fc" id="L112">        return objectMapper.readTree(response).get(&quot;token&quot;).asText();</span>
+    }
+
+    // ========================= GET ALL =========================
+
+
+
+
+
+    @Test
+    void getAllWithAddresses_ReturnsOk() throws Exception {
+<span class="fc" id="L123">        CustomerResponse response = new CustomerResponse(1L, &quot;John Doe&quot;, &quot;john@test.com&quot;, &quot;1234567890&quot;);</span>
+<span class="fc" id="L124">        when(customerService.getAllCustomersWithAddresses()).thenReturn(List.of(response));</span>
+
+<span class="fc" id="L126">        mockMvc.perform(get(&quot;/api/v1/customers/with-addresses&quot;)</span>
+<span class="fc" id="L127">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + userToken))</span>
+<span class="fc" id="L128">                .andExpect(status().isOk())</span>
+<span class="fc" id="L129">                .andExpect(jsonPath(&quot;$[0].name&quot;).value(&quot;John Doe&quot;));</span>
+<span class="fc" id="L130">    }</span>
+
+    // ========================= CREATE =========================
+
+    @Test
+    void createCustomer_ValidRequest_ReturnsCreated() throws Exception {
+<span class="fc" id="L136">        CustomerRequest request = new CustomerRequest();</span>
+<span class="fc" id="L137">        request.setName(&quot;John Doe&quot;);</span>
+<span class="fc" id="L138">        request.setEmail(&quot;john@test.com&quot;);</span>
+<span class="fc" id="L139">        request.setPhone(&quot;1234567890&quot;);</span>
+
+<span class="fc" id="L141">        CustomerResponse response = new CustomerResponse(1L, &quot;John Doe&quot;, &quot;john@test.com&quot;, &quot;1234567890&quot;);</span>
+
+<span class="fc" id="L143">        when(customerService.createCustomer(any(CustomerRequest.class))).thenReturn(response);</span>
+
+<span class="fc" id="L145">        mockMvc.perform(post(&quot;/api/v1/customers&quot;)</span>
+<span class="fc" id="L146">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + userToken)</span>
+<span class="fc" id="L147">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L148">                        .content(objectMapper.writeValueAsString(request)))</span>
+<span class="fc" id="L149">                .andExpect(status().isCreated())</span>
+<span class="fc" id="L150">                .andExpect(jsonPath(&quot;$.name&quot;).value(&quot;John Doe&quot;));</span>
+<span class="fc" id="L151">    }</span>
+
+    @Test
+    void createCustomer_BlankName_ReturnsBadRequest() throws Exception {
+<span class="fc" id="L155">        CustomerRequest request = new CustomerRequest();</span>
+<span class="fc" id="L156">        request.setName(&quot;&quot;);</span>
+<span class="fc" id="L157">        request.setEmail(&quot;john@test.com&quot;);</span>
+<span class="fc" id="L158">        request.setPhone(&quot;1234567890&quot;);</span>
+
+<span class="fc" id="L160">        mockMvc.perform(post(&quot;/api/v1/customers&quot;)</span>
+<span class="fc" id="L161">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + userToken)</span>
+<span class="fc" id="L162">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L163">                        .content(objectMapper.writeValueAsString(request)))</span>
+<span class="fc" id="L164">                .andExpect(status().isBadRequest());</span>
+<span class="fc" id="L165">    }</span>
+
+    @Test
+    void createCustomer_InvalidEmail_ReturnsBadRequest() throws Exception {
+<span class="fc" id="L169">        CustomerRequest request = new CustomerRequest();</span>
+<span class="fc" id="L170">        request.setName(&quot;John&quot;);</span>
+<span class="fc" id="L171">        request.setEmail(&quot;not-an-email&quot;);</span>
+<span class="fc" id="L172">        request.setPhone(&quot;1234567890&quot;);</span>
+
+<span class="fc" id="L174">        mockMvc.perform(post(&quot;/api/v1/customers&quot;)</span>
+<span class="fc" id="L175">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + userToken)</span>
+<span class="fc" id="L176">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L177">                        .content(objectMapper.writeValueAsString(request)))</span>
+<span class="fc" id="L178">                .andExpect(status().isBadRequest());</span>
+<span class="fc" id="L179">    }</span>
+
+    @Test
+    void createCustomer_DuplicateEmail_ReturnsConflict() throws Exception {
+<span class="fc" id="L183">        CustomerRequest request = new CustomerRequest();</span>
+<span class="fc" id="L184">        request.setName(&quot;John&quot;);</span>
+<span class="fc" id="L185">        request.setEmail(&quot;john@test.com&quot;);</span>
+<span class="fc" id="L186">        request.setPhone(&quot;1234567890&quot;);</span>
+
+<span class="fc" id="L188">        when(customerService.createCustomer(any(CustomerRequest.class)))</span>
+<span class="fc" id="L189">                .thenThrow(new DuplicateResourceException(&quot;Customer with that email already exists&quot;));</span>
+
+<span class="fc" id="L191">        mockMvc.perform(post(&quot;/api/v1/customers&quot;)</span>
+<span class="fc" id="L192">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + userToken)</span>
+<span class="fc" id="L193">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L194">                        .content(objectMapper.writeValueAsString(request)))</span>
+<span class="fc" id="L195">                .andExpect(status().isConflict());</span>
+<span class="fc" id="L196">    }</span>
+
+    @Test
+    void createCustomer_UserAlreadyHasProfile_ReturnsBadRequest() throws Exception {
+<span class="fc" id="L200">        CustomerRequest request = new CustomerRequest();</span>
+<span class="fc" id="L201">        request.setName(&quot;John&quot;);</span>
+<span class="fc" id="L202">        request.setEmail(&quot;john@test.com&quot;);</span>
+<span class="fc" id="L203">        request.setPhone(&quot;1234567890&quot;);</span>
+
+<span class="fc" id="L205">        when(customerService.createCustomer(any(CustomerRequest.class)))</span>
+<span class="fc" id="L206">                .thenThrow(new ValidationException(&quot;You already have a customer profile.&quot;));</span>
+
+<span class="fc" id="L208">        mockMvc.perform(post(&quot;/api/v1/customers&quot;)</span>
+<span class="fc" id="L209">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + userToken)</span>
+<span class="fc" id="L210">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L211">                        .content(objectMapper.writeValueAsString(request)))</span>
+<span class="fc" id="L212">                .andExpect(status().isBadRequest());</span>
+<span class="fc" id="L213">    }</span>
+
+    @Test
+    void createCustomer_Admin_ReturnsForbidden() throws Exception {
+<span class="fc" id="L217">        CustomerRequest request = new CustomerRequest();</span>
+<span class="fc" id="L218">        request.setName(&quot;John&quot;);</span>
+<span class="fc" id="L219">        request.setEmail(&quot;john@test.com&quot;);</span>
+<span class="fc" id="L220">        request.setPhone(&quot;1234567890&quot;);</span>
+
+<span class="fc" id="L222">        when(customerService.createCustomer(any(CustomerRequest.class)))</span>
+<span class="fc" id="L223">                .thenThrow(new AccessDeniedException(&quot;ADMIN cannot create customer profiles.&quot;));</span>
+
+<span class="fc" id="L225">        mockMvc.perform(post(&quot;/api/v1/customers&quot;)</span>
+<span class="fc" id="L226">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + adminToken)</span>
+<span class="fc" id="L227">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L228">                        .content(objectMapper.writeValueAsString(request)))</span>
+<span class="fc" id="L229">                .andExpect(status().isForbidden());</span>
+<span class="fc" id="L230">    }</span>
+
+    // ========================= GET BY ID =========================
+
+    @Test
+    void getCustomerById_Exists_ReturnsOk() throws Exception {
+<span class="fc" id="L236">        CustomerResponse response = new CustomerResponse(1L, &quot;John Doe&quot;, &quot;john@test.com&quot;, &quot;1234567890&quot;);</span>
+<span class="fc" id="L237">        when(customerService.getCustomerById(1L)).thenReturn(response);</span>
+
+<span class="fc" id="L239">        mockMvc.perform(get(&quot;/api/v1/customers/1&quot;)</span>
+<span class="fc" id="L240">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + userToken))</span>
+<span class="fc" id="L241">                .andExpect(status().isOk())</span>
+<span class="fc" id="L242">                .andExpect(jsonPath(&quot;$.name&quot;).value(&quot;John Doe&quot;));</span>
+<span class="fc" id="L243">    }</span>
+
+    @Test
+    void getCustomerById_NotFound_ReturnsNotFound() throws Exception {
+<span class="fc" id="L247">        when(customerService.getCustomerById(999L)).thenThrow(new NotFoundException(&quot;Customer not found&quot;));</span>
+
+<span class="fc" id="L249">        mockMvc.perform(get(&quot;/api/v1/customers/999&quot;)</span>
+<span class="fc" id="L250">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + userToken))</span>
+<span class="fc" id="L251">                .andExpect(status().isNotFound());</span>
+<span class="fc" id="L252">    }</span>
+
+    @Test
+    void getCustomerById_NotOwner_ReturnsForbidden() throws Exception {
+<span class="fc" id="L256">        when(customerService.getCustomerById(1L))</span>
+<span class="fc" id="L257">                .thenThrow(new AccessDeniedException(&quot;You can only view your own profile&quot;));</span>
+
+<span class="fc" id="L259">        mockMvc.perform(get(&quot;/api/v1/customers/1&quot;)</span>
+<span class="fc" id="L260">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + otherUserToken))</span>
+<span class="fc" id="L261">                .andExpect(status().isForbidden());</span>
+<span class="fc" id="L262">    }</span>
+
+    // ========================= UPDATE =========================
+
+    @Test
+    void updateCustomer_ValidRequest_ReturnsOk() throws Exception {
+<span class="fc" id="L268">        CustomerRequest request = new CustomerRequest();</span>
+<span class="fc" id="L269">        request.setName(&quot;John Updated&quot;);</span>
+<span class="fc" id="L270">        request.setEmail(&quot;john.updated@test.com&quot;);</span>
+<span class="fc" id="L271">        request.setPhone(&quot;0987654321&quot;);</span>
+
+<span class="fc" id="L273">        CustomerResponse response = new CustomerResponse(1L, &quot;John Updated&quot;, &quot;john.updated@test.com&quot;, &quot;0987654321&quot;);</span>
+
+<span class="fc" id="L275">        when(customerService.updateCustomer(eq(1L), any(CustomerRequest.class))).thenReturn(response);</span>
+
+<span class="fc" id="L277">        mockMvc.perform(put(&quot;/api/v1/customers/1&quot;)</span>
+<span class="fc" id="L278">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + userToken)</span>
+<span class="fc" id="L279">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L280">                        .content(objectMapper.writeValueAsString(request)))</span>
+<span class="fc" id="L281">                .andExpect(status().isOk())</span>
+<span class="fc" id="L282">                .andExpect(jsonPath(&quot;$.name&quot;).value(&quot;John Updated&quot;));</span>
+<span class="fc" id="L283">    }</span>
+
+    @Test
+    void updateCustomer_NotFound_ReturnsNotFound() throws Exception {
+<span class="fc" id="L287">        CustomerRequest request = new CustomerRequest();</span>
+<span class="fc" id="L288">        request.setName(&quot;John&quot;);</span>
+<span class="fc" id="L289">        request.setEmail(&quot;john@test.com&quot;);</span>
+<span class="fc" id="L290">        request.setPhone(&quot;1234567890&quot;);</span>
+
+<span class="fc" id="L292">        when(customerService.updateCustomer(eq(999L), any(CustomerRequest.class)))</span>
+<span class="fc" id="L293">                .thenThrow(new NotFoundException(&quot;Customer not found&quot;));</span>
+
+<span class="fc" id="L295">        mockMvc.perform(put(&quot;/api/v1/customers/999&quot;)</span>
+<span class="fc" id="L296">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + userToken)</span>
+<span class="fc" id="L297">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L298">                        .content(objectMapper.writeValueAsString(request)))</span>
+<span class="fc" id="L299">                .andExpect(status().isNotFound());</span>
+<span class="fc" id="L300">    }</span>
+
+    @Test
+    void updateCustomer_NotOwner_ReturnsForbidden() throws Exception {
+<span class="fc" id="L304">        CustomerRequest request = new CustomerRequest();</span>
+<span class="fc" id="L305">        request.setName(&quot;John&quot;);</span>
+<span class="fc" id="L306">        request.setEmail(&quot;john@test.com&quot;);</span>
+<span class="fc" id="L307">        request.setPhone(&quot;1234567890&quot;);</span>
+
+<span class="fc" id="L309">        when(customerService.updateCustomer(eq(1L), any(CustomerRequest.class)))</span>
+<span class="fc" id="L310">                .thenThrow(new AccessDeniedException(&quot;You can only update your own profile&quot;));</span>
+
+<span class="fc" id="L312">        mockMvc.perform(put(&quot;/api/v1/customers/1&quot;)</span>
+<span class="fc" id="L313">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + otherUserToken)</span>
+<span class="fc" id="L314">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L315">                        .content(objectMapper.writeValueAsString(request)))</span>
+<span class="fc" id="L316">                .andExpect(status().isForbidden());</span>
+<span class="fc" id="L317">    }</span>
+
+    @Test
+    void updateCustomer_DuplicateEmail_ReturnsConflict() throws Exception {
+<span class="fc" id="L321">        CustomerRequest request = new CustomerRequest();</span>
+<span class="fc" id="L322">        request.setName(&quot;John&quot;);</span>
+<span class="fc" id="L323">        request.setEmail(&quot;taken@test.com&quot;);</span>
+<span class="fc" id="L324">        request.setPhone(&quot;1234567890&quot;);</span>
+
+<span class="fc" id="L326">        when(customerService.updateCustomer(eq(1L), any(CustomerRequest.class)))</span>
+<span class="fc" id="L327">                .thenThrow(new DuplicateResourceException(&quot;email already exists&quot;));</span>
+
+<span class="fc" id="L329">        mockMvc.perform(put(&quot;/api/v1/customers/1&quot;)</span>
+<span class="fc" id="L330">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + userToken)</span>
+<span class="fc" id="L331">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L332">                        .content(objectMapper.writeValueAsString(request)))</span>
+<span class="fc" id="L333">                .andExpect(status().isConflict());</span>
+<span class="fc" id="L334">    }</span>
+
+    @Test
+    void updateCustomer_BlankName_ReturnsBadRequest() throws Exception {
+<span class="fc" id="L338">        CustomerRequest request = new CustomerRequest();</span>
+<span class="fc" id="L339">        request.setName(&quot;&quot;);</span>
+<span class="fc" id="L340">        request.setEmail(&quot;john@test.com&quot;);</span>
+<span class="fc" id="L341">        request.setPhone(&quot;1234567890&quot;);</span>
+
+<span class="fc" id="L343">        mockMvc.perform(put(&quot;/api/v1/customers/1&quot;)</span>
+<span class="fc" id="L344">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + userToken)</span>
+<span class="fc" id="L345">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L346">                        .content(objectMapper.writeValueAsString(request)))</span>
+<span class="fc" id="L347">                .andExpect(status().isBadRequest());</span>
+<span class="fc" id="L348">    }</span>
+
+    // ========================= PATCH =========================
+
+    @Test
+    void patchCustomer_ValidRequest_ReturnsOk() throws Exception {
+<span class="fc" id="L354">        CustomerResponse response = new CustomerResponse(1L, &quot;John Doe&quot;, &quot;john@test.com&quot;, &quot;9998887777&quot;);</span>
+<span class="fc" id="L355">        String patchBody = &quot;{\&quot;phone\&quot;:\&quot;9998887777\&quot;}&quot;;</span>
+
+<span class="fc" id="L357">        when(customerService.patchCustomer(eq(1L), any())).thenReturn(response);</span>
+
+<span class="fc" id="L359">        mockMvc.perform(patch(&quot;/api/v1/customers/1&quot;)</span>
+<span class="fc" id="L360">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + userToken)</span>
+<span class="fc" id="L361">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L362">                        .content(patchBody))</span>
+<span class="fc" id="L363">                .andExpect(status().isOk())</span>
+<span class="fc" id="L364">                .andExpect(jsonPath(&quot;$.phone&quot;).value(&quot;9998887777&quot;));</span>
+<span class="fc" id="L365">    }</span>
+
+    @Test
+    void patchCustomer_InvalidEmail_ReturnsBadRequest() throws Exception {
+<span class="fc" id="L369">        String patchBody = &quot;{\&quot;email\&quot;:\&quot;not-an-email\&quot;}&quot;;</span>
+
+<span class="fc" id="L371">        when(customerService.patchCustomer(eq(1L), any()))</span>
+<span class="fc" id="L372">                .thenThrow(new ValidationException(&quot;Email must be valid&quot;));</span>
+
+<span class="fc" id="L374">        mockMvc.perform(patch(&quot;/api/v1/customers/1&quot;)</span>
+<span class="fc" id="L375">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + userToken)</span>
+<span class="fc" id="L376">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L377">                        .content(patchBody))</span>
+<span class="fc" id="L378">                .andExpect(status().isBadRequest());</span>
+<span class="fc" id="L379">    }</span>
+
+    @Test
+    void patchCustomer_NotFound_ReturnsNotFound() throws Exception {
+<span class="fc" id="L383">        String patchBody = &quot;{\&quot;phone\&quot;:\&quot;9998887777\&quot;}&quot;;</span>
+
+<span class="fc" id="L385">        when(customerService.patchCustomer(eq(999L), any()))</span>
+<span class="fc" id="L386">                .thenThrow(new NotFoundException(&quot;Customer not found&quot;));</span>
+
+<span class="fc" id="L388">        mockMvc.perform(patch(&quot;/api/v1/customers/999&quot;)</span>
+<span class="fc" id="L389">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + userToken)</span>
+<span class="fc" id="L390">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L391">                        .content(patchBody))</span>
+<span class="fc" id="L392">                .andExpect(status().isNotFound());</span>
+<span class="fc" id="L393">    }</span>
+
+    @Test
+    void patchCustomer_NotOwner_ReturnsForbidden() throws Exception {
+<span class="fc" id="L397">        String patchBody = &quot;{\&quot;phone\&quot;:\&quot;9998887777\&quot;}&quot;;</span>
+
+<span class="fc" id="L399">        when(customerService.patchCustomer(eq(1L), any()))</span>
+<span class="fc" id="L400">                .thenThrow(new AccessDeniedException(&quot;You can only update your own profile&quot;));</span>
+
+<span class="fc" id="L402">        mockMvc.perform(patch(&quot;/api/v1/customers/1&quot;)</span>
+<span class="fc" id="L403">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + otherUserToken)</span>
+<span class="fc" id="L404">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L405">                        .content(patchBody))</span>
+<span class="fc" id="L406">                .andExpect(status().isForbidden());</span>
+<span class="fc" id="L407">    }</span>
+
+    @Test
+    void patchCustomer_DuplicatePhone_ReturnsConflict() throws Exception {
+<span class="fc" id="L411">        String patchBody = &quot;{\&quot;phone\&quot;:\&quot;9998887777\&quot;}&quot;;</span>
+
+<span class="fc" id="L413">        when(customerService.patchCustomer(eq(1L), any()))</span>
+<span class="fc" id="L414">                .thenThrow(new DuplicateResourceException(&quot;phone already exists&quot;));</span>
+
+<span class="fc" id="L416">        mockMvc.perform(patch(&quot;/api/v1/customers/1&quot;)</span>
+<span class="fc" id="L417">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + userToken)</span>
+<span class="fc" id="L418">                        .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L419">                        .content(patchBody))</span>
+<span class="fc" id="L420">                .andExpect(status().isConflict());</span>
+<span class="fc" id="L421">    }</span>
+
+    // ========================= DELETE =========================
+
+    @Test
+    void deleteCustomer_Admin_ReturnsNoContent() throws Exception {
+<span class="fc" id="L427">        when(customerService.deleteCustomer(1L)).thenReturn(true);</span>
+
+<span class="fc" id="L429">        mockMvc.perform(delete(&quot;/api/v1/customers/1&quot;)</span>
+<span class="fc" id="L430">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + adminToken))</span>
+<span class="fc" id="L431">                .andExpect(status().isNoContent());</span>
+<span class="fc" id="L432">    }</span>
+
+    @Test
+    void deleteCustomer_User_ReturnsForbidden() throws Exception {
+<span class="fc" id="L436">        when(customerService.deleteCustomer(1L))</span>
+<span class="fc" id="L437">                .thenThrow(new AccessDeniedException(&quot;Only ADMIN can delete&quot;));</span>
+
+<span class="fc" id="L439">        mockMvc.perform(delete(&quot;/api/v1/customers/1&quot;)</span>
+<span class="fc" id="L440">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + userToken))</span>
+<span class="fc" id="L441">                .andExpect(status().isForbidden());</span>
+<span class="fc" id="L442">    }</span>
+
+    @Test
+    void deleteCustomer_NotFound_ReturnsNotFound() throws Exception {
+<span class="fc" id="L446">        when(customerService.deleteCustomer(999L))</span>
+<span class="fc" id="L447">                .thenThrow(new NotFoundException(&quot;Customer not found&quot;));</span>
+
+<span class="fc" id="L449">        mockMvc.perform(delete(&quot;/api/v1/customers/999&quot;)</span>
+<span class="fc" id="L450">                        .header(&quot;Authorization&quot;, &quot;Bearer &quot; + adminToken))</span>
+<span class="fc" id="L451">                .andExpect(status().isNotFound());</span>
+<span class="fc" id="L452">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

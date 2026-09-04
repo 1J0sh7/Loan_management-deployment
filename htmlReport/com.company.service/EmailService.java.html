@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EmailService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">test.exec</a> &gt; <a href="index.source.html" class="el_package">com.company.service</a> &gt; <span class="el_source">EmailService.java</span></div><h1>EmailService.java</h1><pre class="source lang-java linenums">package com.company.service;
+
+import com.sendgrid.Method;
+import com.sendgrid.Request;
+import com.sendgrid.Response;
+import com.sendgrid.SendGrid;
+import com.sendgrid.helpers.mail.Mail;
+import com.sendgrid.helpers.mail.objects.Email;
+import com.sendgrid.helpers.mail.objects.Personalization;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.io.IOException;
+
+@Service
+public class EmailService {
+
+<span class="fc" id="L20">    private static final Logger log = LoggerFactory.getLogger(EmailService.class);</span>
+
+    private final SendGrid sendGrid;
+    private final String fromEmail;
+    private final String fromName;
+
+    public EmailService(SendGrid sendGrid,
+                        @Value(&quot;${sendgrid.from-email}&quot;) String fromEmail,
+<span class="fc" id="L28">                        @Value(&quot;${sendgrid.from-name}&quot;) String fromName) {</span>
+<span class="fc" id="L29">        this.sendGrid = sendGrid;</span>
+<span class="fc" id="L30">        this.fromEmail = fromEmail;</span>
+<span class="fc" id="L31">        this.fromName = fromName;</span>
+<span class="fc" id="L32">    }</span>
+
+    public void sendWelcomeEmail(String to, String name) {
+<span class="fc" id="L35">        log.info(&quot;Attempting to send welcome email to: {}&quot;, to);</span>
+
+<span class="fc" id="L37">        Email from = new Email(fromEmail, fromName);</span>
+<span class="fc" id="L38">        Email toEmail = new Email(to);</span>
+
+<span class="fc" id="L40">        Mail mail = new Mail();</span>
+<span class="fc" id="L41">        mail.setFrom(from);</span>
+<span class="fc" id="L42">        mail.setTemplateId(&quot;d-75a2fd64eab94866bb76bc28f1872edd&quot;); // my template id of welcome </span>
+
+<span class="fc" id="L44">        Personalization personalization = new Personalization();</span>
+<span class="fc" id="L45">        personalization.addTo(toEmail);</span>
+<span class="fc" id="L46">        personalization.addDynamicTemplateData(&quot;name&quot;, name);</span>
+<span class="fc" id="L47">        mail.addPersonalization(personalization);</span>
+
+<span class="fc" id="L49">        Request request = new Request();</span>
+        try {
+<span class="fc" id="L51">            request.setMethod(Method.POST);</span>
+<span class="fc" id="L52">            request.setEndpoint(&quot;mail/send&quot;);</span>
+<span class="fc" id="L53">            request.setBody(mail.build());</span>
+<span class="nc" id="L54">            Response response = sendGrid.api(request);</span>
+
+<span class="nc" id="L56">            log.info(&quot;Email sent. Status code: {}&quot;, response.getStatusCode());</span>
+<span class="nc bnc" id="L57" title="All 4 branches missed.">            if (response.getStatusCode() &gt;= 200 &amp;&amp; response.getStatusCode() &lt; 300) {</span>
+<span class="nc" id="L58">                log.info(&quot;Welcome email sent successfully to: {}&quot;, to);</span>
+            } else {
+<span class="nc" id="L60">                log.error(&quot;SendGrid returned error: {}&quot;, response.getBody());</span>
+            }
+<span class="fc" id="L62">        } catch (IOException ex) {</span>
+<span class="fc" id="L63">            log.error(&quot;Failed to send email to {}: {}&quot;, to, ex.getMessage());</span>
+<span class="nc" id="L64">        }</span>
+<span class="fc" id="L65">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CustomerController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">test.exec</a> &gt; <a href="index.source.html" class="el_package">com.company.controller</a> &gt; <span class="el_source">CustomerController.java</span></div><h1>CustomerController.java</h1><pre class="source lang-java linenums">package com.company.controller;
+
+import com.company.dto.CustomerRequest;
+import com.company.dto.CustomerResponse;
+import com.company.dto.PageResponse;
+import com.company.dto.ErrorResponse;
+
+
+import com.company.service.CustomerService;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.*;
+
+
+//importing logs
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+
+
+
+
+import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
+
+
+@RestController
+@RequestMapping(&quot;/api/v1/customers&quot;)
+
+// the main class
+public class CustomerController {
+    //Logger class
+
+<span class="fc" id="L38">    private static final Logger log = LoggerFactory.getLogger(CustomerController.class);</span>
+
+
+    private final CustomerService customerService;
+
+<span class="fc" id="L43">    public CustomerController(CustomerService customerService) {</span>
+<span class="fc" id="L44">        this.customerService = customerService;</span>
+<span class="fc" id="L45">    }</span>
+
+    //pagination
+    @GetMapping
+    public PageResponse&lt;CustomerResponse&gt; getAll(
+            @RequestParam(defaultValue = &quot;0&quot;) int page,
+            @RequestParam(defaultValue = &quot;10&quot;) int size,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String sort) {
+
+<span class="nc" id="L56">        return customerService.getAllCustomers(page, size, name, email, sort);</span>
+    }
+
+    // searching customerwith Id
+    @GetMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;?&gt; getOne(@PathVariable Long id) {
+<span class="fc" id="L62">        CustomerResponse customer = customerService.getCustomerById(id);</span>
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">        if (customer == null) {</span>
+<span class="nc" id="L64">            return ResponseEntity</span>
+<span class="nc" id="L65">                    .status(HttpStatus.NOT_FOUND)</span>
+<span class="nc" id="L66">                    .body(new ErrorResponse(404, &quot;Customer with ID &quot; + id + &quot; not found&quot;));</span>
+        }
+<span class="fc" id="L68">        return ResponseEntity.ok(customer);</span>
+    }
+
+    // Creating a customer
+    @PostMapping
+    public ResponseEntity&lt;CustomerResponse&gt; create(@Valid @RequestBody CustomerRequest request) {
+        // adding simple log
+<span class="fc" id="L75">        log.info(&quot;Received request to create customer with email: {}&quot;, request.getEmail());</span>
+
+<span class="fc" id="L77">        CustomerResponse created = customerService.createCustomer(request);</span>
+<span class="fc" id="L78">        return ResponseEntity.status(HttpStatus.CREATED).body(created);</span>
+    }
+
+    //Updatting a customer.
+    @PutMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;?&gt; update(@PathVariable Long id, @Valid @RequestBody CustomerRequest request) {
+<span class="fc" id="L84">        CustomerResponse updated = customerService.updateCustomer(id, request);</span>
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">        if (updated == null) {</span>
+<span class="nc" id="L86">            return ResponseEntity</span>
+<span class="nc" id="L87">                    .status(HttpStatus.NOT_FOUND)</span>
+<span class="nc" id="L88">                    .body(new ErrorResponse(404, &quot;Customer with ID &quot; + id + &quot; not found&quot;));</span>
+        }
+<span class="fc" id="L90">        return ResponseEntity.ok(updated);</span>
+    }
+
+    // Updating customer by PATCHING ONLY 1 entity or field  EDITED
+    @PatchMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;?&gt; patch(@PathVariable Long id, @RequestBody Map&lt;String, Object&gt; updates) {
+<span class="fc" id="L96">        CustomerResponse updated = customerService.patchCustomer(id, updates);</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">        if (updated == null) {</span>
+<span class="nc" id="L98">            return ResponseEntity</span>
+<span class="nc" id="L99">                    .status(HttpStatus.NOT_FOUND)</span>
+<span class="nc" id="L100">                    .body(new ErrorResponse(404, &quot;Customer with ID &quot; + id + &quot; not found&quot;));</span>
+        }
+<span class="fc" id="L102">        return ResponseEntity.ok(updated);</span>
+    }
+
+
+    // n + 1 fix
+    @GetMapping(&quot;/with-addresses&quot;)
+    public List&lt;CustomerResponse&gt; getAllWithAddresses() {
+<span class="fc" id="L109">        return customerService.getAllCustomersWithAddresses();</span>
+    }
+
+
+
+
+
+
+
+
+
+
+    // Deleting a Customer
+    @DeleteMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;?&gt; delete(@PathVariable Long id) {
+<span class="fc" id="L124">        boolean deleted = customerService.deleteCustomer(id);</span>
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">        if (!deleted) {</span>
+<span class="nc" id="L126">            return ResponseEntity</span>
+<span class="nc" id="L127">                    .status(HttpStatus.NOT_FOUND)</span>
+<span class="nc" id="L128">                    .body(new ErrorResponse(404, &quot;Customer with ID &quot; + id + &quot; not found&quot;));</span>
+        }
+<span class="fc" id="L130">        return ResponseEntity.noContent().build();</span>
+    }
+
+    // Handle validation of  errors manually
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map&lt;String, String&gt; handleValidationErrors(MethodArgumentNotValidException ex) {
+<span class="fc" id="L137">        Map&lt;String, String&gt; errors = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L138">        ex.getBindingResult().getFieldErrors().forEach(error -&gt;</span>
+<span class="fc" id="L139">                errors.put(error.getField(), error.getDefaultMessage())</span>
+        );
+<span class="fc" id="L141">        return errors;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

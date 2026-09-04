@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SecurityConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">test.exec</a> &gt; <a href="index.source.html" class="el_package">com.company.config</a> &gt; <span class="el_source">SecurityConfig.java</span></div><h1>SecurityConfig.java</h1><pre class="source lang-java linenums">package com.company.config;
+
+import com.company.security.CustomAccessDeniedHandler;
+import com.company.security.CustomAuthenticationEntryPoint;
+import com.company.security.JwtAuthenticationFilter;
+import com.company.service.CustomUserDetailsService;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    private final CustomUserDetailsService userDetailsService;
+    private final JwtAuthenticationFilter jwtAuthFilter;
+    private final CustomAuthenticationEntryPoint authenticationEntryPoint;
+    private final CustomAccessDeniedHandler accessDeniedHandler;
+
+    public SecurityConfig(CustomUserDetailsService userDetailsService,
+                          JwtAuthenticationFilter jwtAuthFilter,
+                          CustomAuthenticationEntryPoint authenticationEntryPoint,
+<span class="fc" id="L33">                          CustomAccessDeniedHandler accessDeniedHandler) {</span>
+<span class="fc" id="L34">        this.userDetailsService = userDetailsService;</span>
+<span class="fc" id="L35">        this.jwtAuthFilter = jwtAuthFilter;</span>
+<span class="fc" id="L36">        this.authenticationEntryPoint = authenticationEntryPoint;</span>
+<span class="fc" id="L37">        this.accessDeniedHandler = accessDeniedHandler;</span>
+<span class="fc" id="L38">    }</span>
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+<span class="fc" id="L42">        return new BCryptPasswordEncoder();</span>
+    }
+
+    @Bean
+    public DaoAuthenticationProvider authenticationProvider() {
+<span class="fc" id="L47">        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();</span>
+<span class="fc" id="L48">        authProvider.setUserDetailsService(userDetailsService);</span>
+<span class="fc" id="L49">        authProvider.setPasswordEncoder(passwordEncoder());</span>
+<span class="fc" id="L50">        return authProvider;</span>
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
+<span class="fc" id="L55">        return authConfig.getAuthenticationManager();</span>
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+<span class="fc" id="L60">        http</span>
+<span class="fc" id="L61">                .csrf(csrf -&gt; csrf.disable())</span>
+<span class="fc" id="L62">                .formLogin(form -&gt; form.disable())</span>
+<span class="fc" id="L63">                .sessionManagement(session -&gt; session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))</span>
+<span class="fc" id="L64">                .exceptionHandling(exception -&gt; exception</span>
+<span class="fc" id="L65">                        .authenticationEntryPoint(authenticationEntryPoint)</span>
+<span class="fc" id="L66">                        .accessDeniedHandler(accessDeniedHandler)</span>
+                )
+<span class="fc" id="L68">                .authorizeHttpRequests(auth -&gt; auth</span>
+                        // Public endpoints
+<span class="fc" id="L70">                        .requestMatchers(&quot;/api/auth/**&quot;).permitAll()</span>
+<span class="fc" id="L71">                        .requestMatchers(&quot;/swagger-ui/**&quot;, &quot;/v3/api-docs/**&quot;).permitAll()</span>
+
+                        // Customer endpoints — role-based
+<span class="fc" id="L74">                        .requestMatchers(HttpMethod.POST, &quot;/api/v1/customers&quot;).authenticated()</span>
+<span class="fc" id="L75">                        .requestMatchers(HttpMethod.GET, &quot;/api/v1/customers&quot;).hasRole(&quot;ADMIN&quot;)</span>
+<span class="fc" id="L76">                        .requestMatchers(HttpMethod.GET, &quot;/api/v1/customers/{id}&quot;).authenticated()</span>
+<span class="fc" id="L77">                        .requestMatchers(HttpMethod.PUT, &quot;/api/v1/customers/{id}&quot;).authenticated()</span>
+<span class="fc" id="L78">                        .requestMatchers(HttpMethod.PATCH, &quot;/api/v1/customers/{id}&quot;).authenticated()</span>
+<span class="fc" id="L79">                        .requestMatchers(HttpMethod.DELETE, &quot;/api/v1/customers/{id}&quot;).hasRole(&quot;ADMIN&quot;)</span>
+
+<span class="fc" id="L81">                        .anyRequest().authenticated()</span>
+                )
+<span class="fc" id="L83">                .authenticationProvider(authenticationProvider())</span>
+<span class="fc" id="L84">                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);</span>
+
+<span class="fc" id="L86">        return http.build();</span>
+    }
+}
+
+// latest security
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

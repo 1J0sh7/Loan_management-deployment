@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CustomerService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">test.exec</a> &gt; <a href="index.source.html" class="el_package">com.company.service</a> &gt; <span class="el_source">CustomerService.java</span></div><h1>CustomerService.java</h1><pre class="source lang-java linenums">package com.company.service;
+
+import com.company.dto.CustomerRequest;
+import com.company.dto.CustomerResponse;
+import com.company.dto.PageResponse;
+import com.company.exception.DuplicateResourceException;
+import com.company.exception.NotFoundException;
+import com.company.exception.ValidationException;
+import com.company.model.Customer;
+import com.company.model.User;
+import com.company.repository.CustomerRepository;
+import com.company.repository.UserRepository;
+import com.company.service.EmailService;
+
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+//imported logs
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+
+
+
+
+import java.util.List;
+import java.util.Map;
+
+
+
+
+
+
+
+@Service
+public class CustomerService {
+
+<span class="fc" id="L47">    private static final Logger log = LoggerFactory.getLogger(CustomerService.class);</span>
+    private final CustomerRepository customerRepository;
+    private final UserRepository userRepository;
+    private final EmailService emailService;
+
+<span class="fc" id="L52">    public CustomerService(CustomerRepository customerRepository, UserRepository userRepository, EmailService emailService) {</span>
+<span class="fc" id="L53">        this.customerRepository = customerRepository;</span>
+<span class="fc" id="L54">        this.userRepository = userRepository;</span>
+<span class="fc" id="L55">        this.emailService = emailService;</span>
+<span class="fc" id="L56">    }</span>
+
+    // Mappers
+    private CustomerResponse toResponse(Customer customer) {
+<span class="fc" id="L60">        return new CustomerResponse(</span>
+<span class="fc" id="L61">                customer.getId(),</span>
+<span class="fc" id="L62">                customer.getName(),</span>
+<span class="fc" id="L63">                customer.getEmail(),</span>
+<span class="fc" id="L64">                customer.getPhone()</span>
+        );
+    }
+
+    private Customer toEntity(CustomerRequest request) {
+<span class="fc" id="L69">        Customer customer = new Customer();</span>
+<span class="fc" id="L70">        customer.setName(request.getName());</span>
+<span class="fc" id="L71">        customer.setEmail(request.getEmail());</span>
+<span class="fc" id="L72">        customer.setPhone(request.getPhone());</span>
+<span class="fc" id="L73">        return customer;</span>
+    }
+
+    // CRUD with filters
+    public PageResponse&lt;CustomerResponse&gt; getAllCustomers(
+
+            int page,
+            int size,
+            String name,
+            String email,
+            String sort) {
+
+        // Build Sort object from sort parameter
+<span class="fc" id="L86">        Sort sortOrder = Sort.by(&quot;id&quot;).ascending(); // default</span>
+
+<span class="pc bpc" id="L88" title="1 of 4 branches missed.">        if (sort != null &amp;&amp; !sort.isEmpty()) {</span>
+<span class="fc" id="L89">            String[] sortParts = sort.split(&quot;,&quot;);</span>
+<span class="fc" id="L90">            String field = sortParts[0];</span>
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">            String direction = sortParts.length &gt; 1 ? sortParts[1] : &quot;asc&quot;;</span>
+
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">            Sort.Direction dir = direction.equalsIgnoreCase(&quot;desc&quot;) ? Sort.Direction.DESC : Sort.Direction.ASC;</span>
+<span class="fc" id="L94">            sortOrder = Sort.by(dir, field);</span>
+        }
+
+<span class="fc" id="L97">        Pageable pageable = PageRequest.of(page, size, sortOrder);</span>
+
+        Page&lt;Customer&gt; customerPage;
+
+<span class="pc bpc" id="L101" title="2 of 8 branches missed.">        if (name != null &amp;&amp; !name.isEmpty() &amp;&amp; email != null &amp;&amp; !email.isEmpty()) {</span>
+<span class="fc" id="L102">            customerPage = customerRepository.findByNameContainingIgnoreCaseAndEmailContainingIgnoreCase(name, email, pageable);</span>
+<span class="pc bpc" id="L103" title="1 of 4 branches missed.">        } else if (name != null &amp;&amp; !name.isEmpty()) {</span>
+<span class="fc" id="L104">            customerPage = customerRepository.findByNameContainingIgnoreCase(name, pageable);</span>
+<span class="pc bpc" id="L105" title="3 of 4 branches missed.">        } else if (email != null &amp;&amp; !email.isEmpty()) {</span>
+<span class="nc" id="L106">            customerPage = customerRepository.findByEmailContainingIgnoreCase(email, pageable);</span>
+        } else {
+<span class="fc" id="L108">            customerPage = customerRepository.findAll(pageable);</span>
+        }
+
+<span class="fc" id="L111">        Page&lt;CustomerResponse&gt; responsePage = customerPage.map(this::toResponse);</span>
+
+<span class="fc" id="L113">        return new PageResponse&lt;&gt;(</span>
+<span class="fc" id="L114">                responsePage.getContent(),</span>
+<span class="fc" id="L115">                responsePage.getNumber(),</span>
+<span class="fc" id="L116">                responsePage.getSize(),</span>
+<span class="fc" id="L117">                responsePage.getTotalElements()</span>
+        );
+    }
+
+    // flters involved
+    public CustomerResponse getCustomerById(Long id) {
+<span class="fc" id="L123">        Customer customer = customerRepository.findById(id)</span>
+<span class="fc" id="L124">                .orElseThrow(() -&gt; new NotFoundException(&quot;Customer with ID &quot; + id + &quot; not found&quot;));</span>
+
+<span class="fc" id="L126">        User currentUser = getCurrentUser();</span>
+
+        // If the customer has no user, only ADMIN can view it
+<span class="fc bfc" id="L129" title="All 2 branches covered.">        if (customer.getUser() == null) {</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">            if (!isAdmin()) {</span>
+<span class="fc" id="L131">                throw new AccessDeniedException(&quot;This customer has no owner. Only ADMIN can view it.&quot;);</span>
+            }
+<span class="fc" id="L133">            return toResponse(customer);  // ADMIN can view orphaned customers</span>
+        }
+
+        // Normal ownership check
+<span class="fc bfc" id="L137" title="All 4 branches covered.">        if (!isAdmin() &amp;&amp; !customer.getUser().getId().equals(currentUser.getId())) {</span>
+<span class="fc" id="L138">            throw new AccessDeniedException(&quot;You can only view your own profile&quot;);</span>
+        }
+
+<span class="fc" id="L141">        return toResponse(customer);</span>
+    }
+
+
+
+    //creating customers
+    public CustomerResponse createCustomer(CustomerRequest request) {
+<span class="fc" id="L148">        log.debug(&quot;Checking for duplicate email: {}&quot;, request.getEmail());</span>
+
+<span class="fc" id="L150">        User currentUser = getCurrentUser();</span>
+
+        //  BLOCK ADMIN from creating profiles
+<span class="fc bfc" id="L153" title="All 2 branches covered.">        if (isAdmin()) {</span>
+<span class="fc" id="L154">            throw new AccessDeniedException(&quot;ADMIN cannot create customer profiles. Only regular users can.&quot;);</span>
+        }
+
+        //  USER can only have ONE profile
+<span class="fc bfc" id="L158" title="All 2 branches covered.">        if (customerRepository.existsByUserId(currentUser.getId())) {</span>
+<span class="fc" id="L159">            throw new ValidationException(&quot;You already have a customer profile. You cannot create another one.&quot;);</span>
+        }
+
+<span class="fc bfc" id="L162" title="All 2 branches covered.">        if (customerRepository.existsByEmail(request.getEmail())) {</span>
+<span class="fc" id="L163">            throw new DuplicateResourceException(&quot;Customer with that email already exists&quot;);</span>
+        }
+<span class="fc bfc" id="L165" title="All 2 branches covered.">        if (customerRepository.existsByPhone(request.getPhone())) {</span>
+<span class="fc" id="L166">            throw new DuplicateResourceException(&quot;Customer with that phone already exists&quot;);</span>
+        }
+
+<span class="fc" id="L169">        Customer customer = toEntity(request);</span>
+<span class="fc" id="L170">        customer.setUser(currentUser);</span>
+
+<span class="fc" id="L172">        Customer saved = customerRepository.save(customer);</span>
+
+<span class="fc" id="L174">        emailService.sendWelcomeEmail(saved.getEmail(), saved.getName());</span>
+
+<span class="fc" id="L176">        log.info(&quot;Customer created with ID: {}&quot;, saved.getId());</span>
+<span class="fc" id="L177">        return toResponse(saved);</span>
+    }
+
+    // updating with filters ...
+    public CustomerResponse updateCustomer(Long id, CustomerRequest request) {
+<span class="fc" id="L182">        Customer existing = customerRepository.findById(id)</span>
+<span class="fc" id="L183">                .orElseThrow(() -&gt; new NotFoundException(&quot;Customer with ID &quot; + id + &quot; not found&quot;));</span>
+
+<span class="fc" id="L185">        User currentUser = getCurrentUser();</span>
+
+        // If customer has no user, only ADMIN can update
+<span class="fc bfc" id="L188" title="All 2 branches covered.">        if (existing.getUser() == null) {</span>
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">            if (!isAdmin()) {</span>
+<span class="nc" id="L190">                throw new AccessDeniedException(&quot;This customer has no owner. Only ADMIN can update it.&quot;);</span>
+            }
+            // ADMIN can update orphaned customer
+        } else {
+            // Normal ownership check
+<span class="pc bpc" id="L195" title="1 of 4 branches missed.">            if (!isAdmin() &amp;&amp; !existing.getUser().getId().equals(currentUser.getId())) {</span>
+<span class="fc" id="L196">                throw new AccessDeniedException(&quot;You can only update your own profile&quot;);</span>
+            }
+        }
+
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">        if (!existing.getEmail().equalsIgnoreCase(request.getEmail())) {</span>
+<span class="fc bfc" id="L201" title="All 2 branches covered.">            if (customerRepository.existsByEmail(request.getEmail())) {</span>
+<span class="fc" id="L202">                throw new DuplicateResourceException(&quot;You cannot update with that email because it already exists&quot;);</span>
+            }
+        }
+
+<span class="pc bpc" id="L206" title="1 of 2 branches missed.">        if (!existing.getPhone().equals(request.getPhone())) {</span>
+<span class="pc bpc" id="L207" title="1 of 2 branches missed.">            if (customerRepository.existsByPhone(request.getPhone())) {</span>
+<span class="nc" id="L208">                throw new DuplicateResourceException(&quot;You cannot update with that phone because it already exists&quot;);</span>
+            }
+        }
+
+<span class="fc" id="L212">        existing.setName(request.getName());</span>
+<span class="fc" id="L213">        existing.setEmail(request.getEmail());</span>
+<span class="fc" id="L214">        existing.setPhone(request.getPhone());</span>
+
+<span class="fc" id="L216">        Customer updated = customerRepository.save(existing);</span>
+<span class="fc" id="L217">        return toResponse(updated);</span>
+    }
+
+
+
+
+
+    // deleting
+    public boolean deleteCustomer(Long id) {
+<span class="fc" id="L226">        Customer existing = customerRepository.findById(id)</span>
+<span class="fc" id="L227">                .orElseThrow(() -&gt; new NotFoundException(&quot;Customer with ID &quot; + id + &quot; not found&quot;));</span>
+
+        // Only ADMIN can delete
+<span class="fc bfc" id="L230" title="All 2 branches covered.">        if (!isAdmin()) {</span>
+<span class="fc" id="L231">            throw new AccessDeniedException(&quot;Only ADMIN can delete customers&quot;);</span>
+        }
+
+<span class="fc" id="L234">        customerRepository.deleteById(id);</span>
+<span class="fc" id="L235">        return true;</span>
+    }
+
+
+
+
+
+
+
+    // new N+ 1 service
+    public List&lt;CustomerResponse&gt; getAllCustomersWithAddresses() {
+<span class="fc" id="L246">        List&lt;Customer&gt; customers = customerRepository.findAllWithAddress();</span>
+<span class="fc" id="L247">        return customers.stream()</span>
+<span class="fc" id="L248">                .map(this::toResponse)</span>
+<span class="fc" id="L249">                .collect(java.util.stream.Collectors.toList());</span>
+    }
+
+
+    // PATCH
+    public CustomerResponse patchCustomer(Long id, Map&lt;String, Object&gt; updates) {
+<span class="fc" id="L255">        Customer existing = customerRepository.findById(id)</span>
+<span class="pc" id="L256">                .orElseThrow(() -&gt; new NotFoundException(&quot;Customer with ID &quot; + id + &quot; not found&quot;));</span>
+
+<span class="fc" id="L258">        User currentUser = getCurrentUser();</span>
+
+        // If customer has no user, only ADMIN can patch
+<span class="pc bpc" id="L261" title="1 of 2 branches missed.">        if (existing.getUser() == null) {</span>
+<span class="nc bnc" id="L262" title="All 2 branches missed.">            if (!isAdmin()) {</span>
+<span class="nc" id="L263">                throw new AccessDeniedException(&quot;This customer has no owner. Only ADMIN can update it.&quot;);</span>
+            }
+            // ADMIN can patch orphaned customer
+        } else {
+            // Normal ownership check
+<span class="pc bpc" id="L268" title="1 of 4 branches missed.">            if (!isAdmin() &amp;&amp; !existing.getUser().getId().equals(currentUser.getId())) {</span>
+<span class="fc" id="L269">                throw new AccessDeniedException(&quot;You can only update your own profile&quot;);</span>
+            }
+        }
+
+<span class="fc bfc" id="L273" title="All 2 branches covered.">        if (updates.containsKey(&quot;phone&quot;)) {</span>
+<span class="fc" id="L274">            String newPhone = (String) updates.get(&quot;phone&quot;);</span>
+<span class="pc bpc" id="L275" title="2 of 4 branches missed.">            if (newPhone == null || newPhone.isEmpty()) {</span>
+<span class="nc" id="L276">                throw new ValidationException(&quot;Phone cannot be null or empty&quot;);</span>
+            }
+<span class="pc bpc" id="L278" title="1 of 2 branches missed.">            if (!existing.getPhone().equals(newPhone)) {</span>
+<span class="pc bpc" id="L279" title="1 of 2 branches missed.">                if (customerRepository.existsByPhone(newPhone)) {</span>
+<span class="nc" id="L280">                    throw new DuplicateResourceException(&quot;You cannot update with that phone because it already exists&quot;);</span>
+                }
+            }
+<span class="fc" id="L283">            existing.setPhone(newPhone);</span>
+        }
+
+<span class="fc bfc" id="L286" title="All 2 branches covered.">        if (updates.containsKey(&quot;email&quot;)) {</span>
+<span class="fc" id="L287">            String newEmail = (String) updates.get(&quot;email&quot;);</span>
+<span class="pc bpc" id="L288" title="2 of 4 branches missed.">            if (newEmail == null || newEmail.isEmpty()) {</span>
+<span class="nc" id="L289">                throw new ValidationException(&quot;Email cannot be null or empty&quot;);</span>
+            }
+<span class="pc bpc" id="L291" title="1 of 2 branches missed.">            if (!isValidEmail(newEmail)) {</span>
+<span class="fc" id="L292">                throw new ValidationException(&quot;Email must be valid&quot;);</span>
+            }
+<span class="nc bnc" id="L294" title="All 2 branches missed.">            if (!existing.getEmail().equalsIgnoreCase(newEmail)) {</span>
+<span class="nc bnc" id="L295" title="All 2 branches missed.">                if (customerRepository.existsByEmail(newEmail)) {</span>
+<span class="nc" id="L296">                    throw new DuplicateResourceException(&quot;You cannot update with that email because it already exists&quot;);</span>
+                }
+            }
+<span class="nc" id="L299">            existing.setEmail(newEmail);</span>
+        }
+
+<span class="fc bfc" id="L302" title="All 2 branches covered.">        if (updates.containsKey(&quot;name&quot;)) {</span>
+<span class="fc" id="L303">            String newName = (String) updates.get(&quot;name&quot;);</span>
+<span class="pc bpc" id="L304" title="2 of 4 branches missed.">            if (newName == null || newName.isEmpty()) {</span>
+<span class="fc" id="L305">                throw new ValidationException(&quot;Name cannot be null or empty&quot;);</span>
+            }
+<span class="nc" id="L307">            existing.setName(newName);</span>
+        }
+
+<span class="fc" id="L310">        Customer updated = customerRepository.save(existing);</span>
+<span class="fc" id="L311">        return toResponse(updated);</span>
+    }
+
+
+
+    // Helpers
+    private boolean isValidEmail(String email) {
+<span class="fc" id="L318">        String emailRegex = &quot;^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$&quot;;</span>
+<span class="fc" id="L319">        return email.matches(emailRegex);</span>
+    }
+
+    // NEW: Get current logged-in user
+    private User getCurrentUser() {
+<span class="fc" id="L324">        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();</span>
+<span class="fc" id="L325">        String username = authentication.getName();</span>
+<span class="fc" id="L326">        return userRepository.findByUsername(username)</span>
+<span class="pc" id="L327">                .orElseThrow(() -&gt; new NotFoundException(&quot;User not found&quot;));</span>
+    }
+
+    // NEW: Check if current user is ADMIN
+    private boolean isAdmin() {
+<span class="fc" id="L332">        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();</span>
+<span class="fc" id="L333">        return authentication.getAuthorities().stream()</span>
+<span class="fc" id="L334">                .anyMatch(a -&gt; a.getAuthority().equals(&quot;ROLE_ADMIN&quot;));</span>
+    }
+
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
