@@ -125,8 +125,8 @@ public class CustomerService {
 
     // ✅ NEW: Get current logged-in user's customer profile (for /me endpoint)
     public CustomerResponse getCurrentUserCustomer() {
-        User currentUser = getCurrentUser();
-        Customer customer = customerRepository.findByUser(currentUser)
+        String username = getCurrentUsername();
+        Customer customer = customerRepository.findByUserUsername(username)
                 .orElseThrow(() -> new NotFoundException("Customer profile not found for the logged-in user"));
         return toResponse(customer);
     }
@@ -295,6 +295,11 @@ public class CustomerService {
         String username = authentication.getName();
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new NotFoundException("User not found"));
+    }
+
+    private String getCurrentUsername() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication.getName();
     }
 
     private boolean isAdmin() {
