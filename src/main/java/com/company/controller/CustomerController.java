@@ -4,51 +4,39 @@ import com.company.dto.CustomerRequest;
 import com.company.dto.CustomerResponse;
 import com.company.dto.PageResponse;
 import com.company.dto.ErrorResponse;
-
-
+import com.company.exception.ResourceNotFoundException;
 import com.company.service.CustomerService;
+
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
-
-//importing logs
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-//importing swagger
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-
-
-
 
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @RestController
 @RequestMapping("/api/v1/customers")
 @Tag(name = "Customers", description = "Customer management endpoints")
-
-// the main class
 public class CustomerController {
-    //Logger class
 
     private static final Logger log = LoggerFactory.getLogger(CustomerController.class);
-
-
     private final CustomerService customerService;
 
     public CustomerController(CustomerService customerService) {
         this.customerService = customerService;
     }
 
-    //pagination
+    // Pagination
     @GetMapping
     @Operation(summary = "List customers (paginated)", description = "Returns a page of customers, optionally filtered by name or email and sorted.")
     public PageResponse<CustomerResponse> getAll(
@@ -61,7 +49,7 @@ public class CustomerController {
         return customerService.getAllCustomers(page, size, name, email, sort);
     }
 
-    // searching customerwith Id
+    // Get customer by ID
     @GetMapping("/{id}")
     @Operation(summary = "Get customer by ID", description = "Returns a single customer, or 404 if no customer exists with the given ID.")
     public ResponseEntity<?> getOne(@PathVariable Long id) {
@@ -74,18 +62,16 @@ public class CustomerController {
         return ResponseEntity.ok(customer);
     }
 
-    // Creating a customer
+    // Create customer
     @PostMapping
     @Operation(summary = "Create customer", description = "Creates a new customer record from the given request body.")
     public ResponseEntity<CustomerResponse> create(@Valid @RequestBody CustomerRequest request) {
-        // adding simple log
         log.info("Received request to create customer with email: {}", request.getEmail());
-
         CustomerResponse created = customerService.createCustomer(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    //Updatting a customer.
+    // Update customer
     @PutMapping("/{id}")
     @Operation(summary = "Update customer", description = "Replaces the full customer record for the given ID, or 404 if not found.")
     public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody CustomerRequest request) {
@@ -98,7 +84,7 @@ public class CustomerController {
         return ResponseEntity.ok(updated);
     }
 
-    // Updating customer by PATCHING ONLY 1 entity or field  EDITED
+    // Patch customer (partial update)
     @PatchMapping("/{id}")
     @Operation(summary = "Partially update customer", description = "Updates only the fields provided in the request body, or 404 if the customer is not found.")
     public ResponseEntity<?> patch(@PathVariable Long id, @RequestBody Map<String, Object> updates) {
@@ -111,36 +97,22 @@ public class CustomerController {
         return ResponseEntity.ok(updated);
     }
 
-
-    // n + 1 fix
+    // N+1 fix — customers with addresses
     @GetMapping("/with-addresses")
     @Operation(summary = "List customers with addresses", description = "Returns all customers with their addresses eagerly loaded, avoiding N+1 query issues.")
     public List<CustomerResponse> getAllWithAddresses() {
         return customerService.getAllCustomersWithAddresses();
     }
 
-
+    // ✅ NEW: Get current logged-in user's customer profile
     @GetMapping("/me")
-@PreAuthorize("isAuthenticated()")
-public ResponseEntity<CustomerResponse> getCurrentUserCustomer(Authentication authentication) {
-    String username = authentication.getName();
-    Customer customer = customerRepository.findByUserUsername(username)
-            .orElseThrow(() -> new ResourceNotFoundException("Customer not found for user: " + username));
-    return ResponseEntity.ok(customerService.toResponse(customer));
-}
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Get current user's customer profile", description = "Returns the customer profile for the currently authenticated user.")
+    public ResponseEntity<CustomerResponse> getCurrentUserCustomer() {
+        return ResponseEntity.ok(customerService.getCurrentUserCustomer());
+    }
 
-    
-
-
-
-
-
-
-
-
-
-
-    // Deleting a Customer
+    // Delete customer
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete customer", description = "Deletes the customer with the given ID, or 404 if no such customer exists.")
     public ResponseEntity<?> delete(@PathVariable Long id) {
@@ -153,7 +125,7 @@ public ResponseEntity<CustomerResponse> getCurrentUserCustomer(Authentication au
         return ResponseEntity.noContent().build();
     }
 
-    // Handle validation of  errors manually
+    // Handle validation errors
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Map<String, String> handleValidationErrors(MethodArgumentNotValidException ex) {
