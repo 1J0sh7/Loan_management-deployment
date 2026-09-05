@@ -131,15 +131,6 @@ public class CustomerService {
         return toResponse(customer);
     }
 
-    public CustomerResponse toResponse(Customer customer) {
-        return new CustomerResponse(
-                customer.getId(),
-                customer.getName(),
-                customer.getEmail(),
-                customer.getPhone()
-        );
-    }
-
     public CustomerResponse createCustomer(CustomerRequest request) {
         log.debug("Checking for duplicate email: {}", request.getEmail());
 
