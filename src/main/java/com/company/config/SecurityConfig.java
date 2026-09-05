@@ -65,7 +65,10 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(Arrays.asList(
             "https://loan-management.up.railway.app",
-            "https://loan-management.up.railway.app/"
+            "https://loan-management.up.railway.app/",
+            "https://loan-management-ui-iota.vercel.app",   // ✅ ADDED YOUR DEPLOYED FRONTEND
+            "http://localhost:3000",                        // Local dev (optional)
+            "http://localhost:3002"                         // Local dev (optional)
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
