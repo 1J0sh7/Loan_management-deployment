@@ -120,6 +120,18 @@ public class CustomerController {
     }
 
 
+    @GetMapping("/me")
+@PreAuthorize("isAuthenticated()")
+public ResponseEntity<CustomerResponse> getCurrentUserCustomer(Authentication authentication) {
+    String username = authentication.getName();
+    Customer customer = customerRepository.findByUserUsername(username)
+            .orElseThrow(() -> new ResourceNotFoundException("Customer not found for user: " + username));
+    return ResponseEntity.ok(customerService.toResponse(customer));
+}
+
+    
+
+
 
 
 
